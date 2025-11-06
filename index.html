@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Configuración Networking Multi-Cloud</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 2rem;
+    background-color: #f9f9f9;
+  }
+  h1 {
+    color: #333;
+    margin-bottom: 0.3em;
+  }
+  h2 {
+    color: #555;
+  }
+  label {
+    display: block;
+    margin: 0.6em 0 0.2em;
+  }
+  input[type=text], select {
+    width: 100%;
+    max-width: 400px;
+    padding: 0.5em;
+    box-sizing: border-box;
+  }
+  .cloud-selection button {
+    margin-right: 1em;
+    padding: 0.5em 1em;
+    background-color: #ddd;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .cloud-selection button.active {
+    color: white;
+    font-weight: bold;
+  }
+  #oci-btn { background-color: #F80000; }
+  #gcp-btn { background-color: #4285F4; }
+  #aws-btn { background-color: #FF9900; }
+  #azure-btn { background-color: #0078D4; }
+
+  form {
+    margin-top: 1em;
+    margin-bottom: 2em;
+  }
+  button.generate, button.clear {
+    padding: 0.7em 2em;
+    margin-top: 1em;
+    font-weight: bold;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+  }
+  button.generate {
+    background-color: #2c7;
+    color: white;
+    margin-right: 1em;
+  }
+  button.generate:hover {
+    background-color: #28a745;
+  }
+  button.clear {
+    background-color: #ccc;
+  }
+  button.clear:hover {
+    background-color: #999;
+    color: white;
+  }
+  #output {
+    background: #fff;
+    padding: 1em;
+    border-radius: 6px;
+    box-shadow: 0 0 8px #ccc;
+    max-width: 650px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1em;
+  }
+  table td, table th {
+    border: 1px solid #bbb;
+    padding: 0.5em;
+    text-align: left;
+  }
+  table th {
+    background-color: #eee;
+  }
+  pre {
+    background: #f4f4f4;
+    padding: 1em;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: monospace;
+    margin-top: 1em;
+  }
+  button.copy-btn {
+    background-color: #4285F4;
+    border: none;
+    color: white;
+    padding: 0.5em 1em;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-top: 0.8em;
+  }
+  button.copy-btn:hover {
+    background-color: #2a6fdb;
+  }
+  .tooltip {
+    display: inline-block;
+    border-bottom: 1px dotted black;
+    cursor: help;
+    position: relative;
+  }
+  .tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    background: #333;
+    color: #fff;
+    border-radius: 4px;
+    padding: 4px 8px;
+    top: 1.6em;
+    left: 0;
+    white-space: nowrap;
+    z-index: 10;
+    font-size: 0.9em;
+  }
+</style>
+</head>
+<body>
+<h1>Configuración Networking Multi-Cloud</h1>
+<h2>Elige un proveedor y configura tu red</h2>
+
+<div class="cloud-selection">
+  <button id="oci-btn" class="active">OCI</button>
+  <button id="gcp-btn">GCP</button>
+  <button id="aws-btn">AWS</button>
+  <button id="azure-btn">Azure</button>
+</div>
+
+<form id="config-form" novalidate>
+  <label for="project-name" class="tooltip" data-tooltip="Nombre identificador de tu proyecto o recurso.">Proyecto nombre</label>
+  <input type="text" id="project-name" required placeholder="mi-proyecto"/>
+
+  <label for="compartment" id="compartment-label" class="tooltip" data-tooltip="Identificador de cuenta, proyecto o suscripción según cloud.">Compartment ID</label>
+  <input type="text" id="compartment" required placeholder="us-phoenix-1/abc123"/>
+
+  <label for="network-name" id="network-label" class="tooltip" data-tooltip="Nombre de la red virtual (VCN, VPC o VNet).">VCN Name</label>
+  <input type="text" id="network-name" required placeholder="mi-red"/>
+
+  <label for="subnet-name" class="tooltip" data-tooltip="Nombre identificador de la subred dentro de la VPC/VNet.">Nombre de Subnet</label>
+  <input type="text" id="subnet-name" required placeholder="subnet-privada"/>
+
+  <label for="cidr" class="tooltip" data-tooltip="Rango CIDR para la red principal, ej: 10.0.0.0/16">CIDR block</label>
+  <input type="text" id="cidr" required placeholder="10.0.0.0/16"/>
+
+  <label for="subnet-cidr" class="tooltip" data-tooltip="Rango CIDR para la subred, ej: 10.0.1.0/24">Subnet CIDR</label>
+  <input type="text" id="subnet-cidr" required placeholder="10.0.1.0/24"/>
+
+  <label for="region" class="tooltip" data-tooltip="Región donde desplegar la red, ej: us-phoenix-1, us-central1, us-east-1, eastus">Región</label>
+  <input type="text" id="region" required placeholder="us-phoenix-1"/>
+
+  <br/>
+  <button type="button" class="generate">Generar Configuración</button>
+  <button type="button" class="clear">Limpiar</button>
+</form>
+
+<div id="output" style="display:none;">
+  <h2>Resumen</h2>
+  <table id="summary-table">
+    <thead><tr><th>Parámetro</th><th>Valor</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Comando para Cloud Shell</h2>
+  <pre id="command-block"></pre>
+  <button class="copy-btn">Copiar comando</button>
+</div>
+
+<script>
+  const cloudProviders = {
+    oci: {
+      name: "Oracle Cloud Infrastructure",
+      color: "#F80000",
+      compartmentLabel: "Compartment ID",
+      networkLabel: "VCN Name",
+      regionExample: "us-phoenix-1",
+      commands: {
+        vcn: "oci network vcn create -c {compartment} --display-name "{network_name}" --cidr-block "{cidr}"",
+        subnet: "oci network subnet create --vcn-id <VCN_ID> -c {compartment} --display-name "{subnet_name}" --cidr-block "{subnet_cidr}" --region {region}"
+      }
+    },
+    gcp: {
+      name: "Google Cloud Platform",
+      color: "#4285F4",
+      compartmentLabel: "Project ID",
+      networkLabel: "VPC Name",
+      regionExample: "us-central1",
+      commands: {
+        vpc: "gcloud compute networks create {network_name} --project={compartment} --subnet-mode=custom",
+        subnet: "gcloud compute networks subnets create {subnet_name} --network={network_name} --region={region} --range={subnet_cidr} --project={compartment}"
+      }
+    },
+    aws: {
+      name: "Amazon Web Services",
+      color: "#FF9900",
+      compartmentLabel: "Account ID (Opcional)",
+      networkLabel: "VPC Name",
+      regionExample: "us-east-1",
+      commands: {
+        vpc: "aws ec2 create-vpc --cidr-block {cidr} --tag-specifications 'ResourceType=vpc,Tags=[{{Key=Name,Value={network_name}}}]'",
+        subnet: "aws ec2 create-subnet --vpc-id <VPC_ID> --cidr-block {subnet_cidr} --availability-zone {region}a --tag-specifications 'ResourceType=subnet,Tags=[{{Key=Name,Value={subnet_name}}}]'"
+      }
+    },
+    azure: {
+      name: "Microsoft Azure",
+      color: "#0078D4",
+      compartmentLabel: "Subscription ID",
+      networkLabel: "VNet Name",
+      regionExample: "eastus",
+      commands: {
+        vnet: "az network vnet create --name {network_name} --resource-group {project_name}-rg --location {region} --address-prefixes {cidr} --subnet-name {subnet_name} --subnet-prefixes {subnet_cidr} --subscription {compartment}"
+      }
+    }
+  };
+
+  let currentCloud = "oci";
+
+  function updateLabels() {
+    const provider = cloudProviders[currentCloud];
+    document.getElementById("compartment-label").textContent = provider.compartmentLabel;
+    document.getElementById("network-label").textContent = provider.networkLabel;
+    document.getElementById("region").placeholder = provider.regionExample;
+  }
+
+  function setActiveCloudButton() {
+    ["oci-btn","gcp-btn","aws-btn","azure-btn"].forEach(id => {
+      const btn = document.getElementById(id);
+      btn.classList.toggle("active", id.startsWith(currentCloud));
+    });
+  }
+
+  function clearForm() {
+    document.getElementById("config-form").reset();
+    document.getElementById("output").style.display = "none";
+  }
+
+  function validateCIDR(cidr) {
+    const cidrPattern = /^([0-9]{1,3}.){3}[0-9]{1,3}/[0-9]{1,2}$/;
+    if (!cidrPattern.test(cidr)) return false;
+    // Basic validation for IP octets 0-255
+    const parts = cidr.split('/');
+    const ipParts = parts[0].split('.');
+    for (let p of ipParts) {
+      const num = Number(p);
+      if (num < 0 || num > 255) return false;
+    }
+    const mask = Number(parts[1]);
+    if (mask < 0 || mask > 32) return false;
+    return true;
+  }
+
+  function generateCommand(data) {
+    const provider = cloudProviders[currentCloud];
+    if (currentCloud === "oci") {
+      return provider.commands.vcn.replace("{compartment}", data.compartment)
+        .replace("{network_name}", data.networkName)
+        .replace("{cidr}", data.cidr) + "
+
+" +
+        provider.commands.subnet.replace("{compartment}", data.compartment)
+        .replace("{subnet_name}", data.subnetName)
+        .replace("{subnet_cidr}", data.subnetCidr)
+        .replace("{region}", data.region);
+    } else if (currentCloud === "gcp") {
+      return provider.commands.vpc.replace("{network_name}", data.networkName)
+        .replace("{compartment}", data.compartment) + "
+
+" +
+        provider.commands.subnet.replace("{subnet_name}", data.subnetName)
+        .replace("{network_name}", data.networkName)
+        .replace("{region}", data.region)
+        .replace("{subnet_cidr}", data.subnetCidr)
+        .replace("{compartment}", data.compartment);
+    } else if (currentCloud === "aws") {
+      return provider.commands.vpc.replace("{cidr}", data.cidr)
+        .replace("{network_name}", data.networkName) + "
+
+" +
+        provider.commands.subnet.replace("{subnet_cidr}", data.subnetCidr)
+        .replace("{region}", data.region)
+        .replace("{subnet_name}", data.subnetName);
+    } else if (currentCloud === "azure") {
+      return provider.commands.vnet.replace("{network_name}", data.networkName)
+        .replace("{project_name}", data.projectName)
+        .replace("{region}", data.region)
+        .replace("{cidr}", data.cidr)
+        .replace("{subnet_name}", data.subnetName)
+        .replace("{subnet_cidr}", data.subnetCidr)
+        .replace("{compartment}", data.compartment);
+    }
+    return "";
+  }
+
+  function fillSummaryTable(data) {
+    const tbody = document.querySelector("#summary-table tbody");
+    tbody.innerHTML = "";
+    const provider = cloudProviders[currentCloud];
+    const rows = [
+      {param: "Proveedor Cloud", value: provider.name},
+      {param: "Nombre Proyecto", value: data.projectName},
+      {param: provider.compartmentLabel, value: data.compartment},
+      {param: provider.networkLabel, value: data.networkName},
+      {param: "Nombre de Subnet", value: data.subnetName},
+      {param: "CIDR Block", value: data.cidr},
+      {param: "Subnet CIDR", value: data.subnetCidr},
+      {param: "Región", value: data.region}
+    ];
+    for (const row of rows) {
+      const tr = document.createElement("tr");
+      const td1 = document.createElement("td");
+      td1.textContent = row.param;
+      const td2 = document.createElement("td");
+      td2.textContent = row.value;
+      tr.appendChild(td1);
+      tr.appendChild(td2);
+      tbody.appendChild(tr);
+    }
+  }
+
+  function showOutputTableAndCommand(summaryData, commandText) {
+    fillSummaryTable(summaryData);
+    document.getElementById("command-block").textContent = commandText;
+    document.getElementById("output").style.display = "block";
+  }
+
+  function showError(message) {
+    alert(message);
+  }
+
+  function getFormData() {
+    return {
+      projectName: document.getElementById("project-name").value.trim(),
+      compartment: document.getElementById("compartment").value.trim(),
+      networkName: document.getElementById("network-name").value.trim(),
+      subnetName: document.getElementById("subnet-name").value.trim(),
+      cidr: document.getElementById("cidr").value.trim(),
+      subnetCidr: document.getElementById("subnet-cidr").value.trim(),
+      region: document.getElementById("region").value.trim()
+    };
+  }
+
+  function validateForm(data) {
+    if (!data.projectName) { showError("Debes ingresar el nombre del proyecto."); return false; }
+    if (!data.compartment) { showError(`Debes ingresar ${cloudProviders[currentCloud].compartmentLabel}.`); return false; }
+    if (!data.networkName) { showError(`Debes ingresar ${cloudProviders[currentCloud].networkLabel}.`); return false; }
+    if (!data.subnetName) { showError("Debes ingresar el nombre de la subnet."); return false; }
+    if (!data.cidr) { showError("Debes ingresar el CIDR block."); return false; }
+    if (!validateCIDR(data.cidr)) { showError("Formato CIDR no válido para el CIDR block."); return false; }
+    if (!data.subnetCidr) { showError("Debes ingresar el CIDR de la subnet."); return false; }
+    if (!validateCIDR(data.subnetCidr)) { showError("Formato CIDR no válido para la subnet CIDR."); return false; }
+    if (!data.region) { showError("Debes ingresar la región."); return false; }
+    return true;
+  }
+
+  function switchCloud(newCloud) {
+    currentCloud = newCloud;
+    ["oci-btn","gcp-btn","aws-btn","azure-btn"].forEach(id => {
+      document.getElementById(id).classList.toggle("active", id.startsWith(newCloud));
+    });
+    updateLabels();
+    clearForm();
+  }
+
+  document.getElementById("oci-btn").onclick = () => switchCloud("oci");
+  document.getElementById("gcp-btn").onclick = () => switchCloud("gcp");
+  document.getElementById("aws-btn").onclick = () => switchCloud("aws");
+  document.getElementById("azure-btn").onclick = () => switchCloud("azure");
+
+  document.querySelector("button.generate").onclick = () => {
+    const data = getFormData();
+    if (!validateForm(data)) return;
+    const command = generateCommand(data);
+    showOutputTableAndCommand(data, command);
+  };
+
+  document.querySelector("button.clear").onclick = () => {
+    clearForm();
+  };
+
+  document.querySelector(".copy-btn").onclick = () => {
+    const commandText = document.getElementById("command-block").textContent;
+    navigator.clipboard.writeText(commandText).then(() => {
+      alert("Comando copiado al portapapeles");
+    });
+  };
+
+  // Inicializa etiquetas al cargar
+  updateLabels();
+</script>
+
+</body>
+</html>
